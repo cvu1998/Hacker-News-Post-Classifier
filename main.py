@@ -147,6 +147,9 @@ def getWordsToBeRemovedBaseOnFrequency(vocabulary, frequency):
             words_to_pop.append(i)
     return words_to_pop
 
+def sortFunction(i):
+    return i[0]
+
 dataset = pandas.read_csv("hns_2018_2019.csv")
 data = dataset.iloc[:, :].values
 model_data = dataset.iloc[:, [2, 3, 5]].values
@@ -182,6 +185,11 @@ stop_words = set()
 table = str.maketrans(dict.fromkeys(removed))
 
 getVocabulary(vocabulary, classes, training, table, isInStopWord, stop_words)
+
+percentile_based_voc = []
+for i in vocabulary.keys():
+    frequency = vocabulary[i]["story"][0] + vocabulary[i]["ask_hn"][0] + vocabulary[i]["show_hn"][0] + vocabulary[i]["poll"][0]
+    percentile_based_voc.append([frequency, i])
     
 generateModel(vocabulary, sorted_vocabulary, classes, "model-2018.txt", True)
 
@@ -220,13 +228,9 @@ generateModel(vocabulary, sorted_vocabulary, classes, "wordlength-model.txt", Tr
 
 generateResultAndFiles(vocabulary, classes, table, "wordlength-result.txt", "inspect-result-wordlength.txt", "Word Length Model", True)
 
-performances = []
+performances_frequency = []
+numbers_of_words_frequency = []
 frequencies = [1, 5, 10, 15, 20]
-frequency_based_voc = []
-
-for i in vocabulary.keys():
-    frequency = vocabulary[i]["story"][0] + vocabulary[i]["ask_hn"][0] + vocabulary[i]["show_hn"][0] + vocabulary[i]["poll"][0]
-    frequency_based_voc.append([frequency, i])
     
 stop_words.clear()
 for i in frequencies:
@@ -238,10 +242,44 @@ for i in frequencies:
     
     for j in getWordsToBeRemovedBaseOnFrequency(vocabulary, i):
         vocabulary.pop(j)
+        
+    generateModel(vocabulary, sorted_vocabulary, classes, "", False)
+
+    numbers_of_words_frequency.append(len(vocabulary))
+    
+    performances_frequency.append(generateResultAndFiles(vocabulary, classes, table, "", "", "Frequency Model {0}".format(i), False))
+    
+percentile_based_voc.sort(reverse=True, key=sortFunction)
+
+performances_percentile = []
+numbers_of_words_percentile = []
+percentiles = [0.05, 0.1, 0.15, 0.2, 0.25]
+
+for i in percentiles:
+    vocabulary = {}
+    sorted_vocabulary = {}
+    classes = {"story" : [0, 0], "ask_hn" : [0, 0], "show_hn" : [0, 0], "poll" : [0, 0]}
+    
+    getVocabulary(vocabulary, classes, training, table, isInStopWord, stop_words)
+    
+    for j in range(int(i * len(percentile_based_voc))):
+        vocabulary.pop(percentile_based_voc[j][1])
     
     generateModel(vocabulary, sorted_vocabulary, classes, "", False)
 
-    generateResultAndFiles(vocabulary, classes, table, "", "", "Frequency Model {0}".format(i), False)
-
+    numbers_of_words_percentile.append(len(vocabulary))
+    performances_percentile.append(generateResultAndFiles(vocabulary, classes, table, "", "", "Percentile Model {0}".format(i), False))
     
+matplotlib.pyplot.figure(figsize=(4, 2))
+matplotlib.pyplot.subplot(121)
+matplotlib.pyplot.xlabel("Numbers of Words Left in the Vocabulary")
+matplotlib.pyplot.ylabel("Accuracy of the Model")
+matplotlib.pyplot.title("Frequency Model", loc="center")
+matplotlib.pyplot.plot(numbers_of_words_frequency, performances_frequency)
+matplotlib.pyplot.subplot(122)
+matplotlib.pyplot.title("Percentile Model", loc="center")
+matplotlib.pyplot.xlabel("Numbers of Words Left in the Vocabulary")
+matplotlib.pyplot.ylabel("Accuracy of the Model")
+matplotlib.pyplot.plot(numbers_of_words_percentile, performances_percentile)
+matplotlib.pyplot.show()
 print("Program Ended!")
