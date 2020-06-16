@@ -67,12 +67,8 @@ def getScores(vocabulary, classes, feature, table):
         score = 0
         for word in feature.split():
             if word in vocabulary:
-                if i in vocabulary[word]:
-                    if vocabulary[word][i][1] > 0:
-                        score += math.log10(vocabulary[word][i][1])
-                    else:
-                        score = float('-inf')
-                        break
+                if vocabulary[word][i][1] > 0:
+                    score += math.log10(vocabulary[word][i][1])
                 else:
                     score = float('-inf')
                     break
@@ -82,26 +78,33 @@ def getScores(vocabulary, classes, feature, table):
             output[i] = float("-inf")
     return output
 
+def getMaxScoreClass(outputs):
+    output = None
+    max_score = float('-inf')
+    for j in outputs.keys():
+        score = outputs[j]
+        if score >= max_score:
+            output = j
+            max_score = score
+    return output
+
 def generateResultAndFiles(vocabulary, classes, table, result_filename, inspect_filename, model_name, write_to_file):
-    model_score = 0
     if write_to_file:
-        baseline_result = open(result_filename, "w", encoding="utf-8")
-        inspect_result_basic = open(inspect_filename, "w", encoding="utf-8")
+        result = open(result_filename, "w", encoding="utf-8")
+        inspect_result = open(inspect_filename, "w", encoding="utf-8")
         buffer = []
     line_counter = 0
-    testing_output = []
+    model_score = 0
     for i in testing_features:
         outputs = getScores(vocabulary, classes, i, table)
-        output = None
-        max_score = float('-inf')
-        for j in outputs.keys():
-            score = outputs[j]
-            if score > max_score:
-                output = j
-                max_score = score
-        testing_output.append(output)
+        output = getMaxScoreClass(outputs)
+        answer = testing_classes[line_counter]
+        correctness = "wrong"
+        if answer == output:
+            correctness = "right"
+            model_score += 1
         if write_to_file:
-            baseline_result.write("{0}  {1}  {2} ".format(str(line_counter), i, output))
+            result.write("{0}  {1}  {2} ".format(str(line_counter), i, output))
             if "story" in outputs:
                 buffer.append("{0}  ".format(str(outputs["story"])))
             else:
@@ -118,27 +121,21 @@ def generateResultAndFiles(vocabulary, classes, table, result_filename, inspect_
                 buffer.append("{0}  ".format(str(outputs["poll"])))
             else:
                 buffer.append("-inf  ")
-            baseline_result.write("".join(buffer))
-        answer = testing_classes[line_counter]
-        correctness = "wrong"
-        if answer == output:
-            correctness = "right"
-            model_score += 1
-        if write_to_file:
+            result.write("".join(buffer))
             if correctness == "wrong":
-                inspect_result_basic.write(output + " " + answer + " " + "| " + i + "\n")
-            baseline_result.write("{0}  {1}\n".format(answer, correctness))
-            line_counter += 1
+                inspect_result.write(output + " " + answer + " " + "| " + i + "\n")
+            result.write("{0}  {1}\n".format(answer, correctness))
             buffer.clear()
+        line_counter += 1
     if write_to_file:
-        baseline_result.close()
-        inspect_result_basic.close()
+        result.close()
+        inspect_result.close()
         
     print(model_name + ":")
-    print(model_score / len(testing_output))
-    print("Wrongs: {0}".format(len(testing_output) - model_score))
-    print("{0} / {1}".format(model_score, len(testing_output)))
-    return model_score / len(testing_output)
+    print("Accuracy: {0}".format(model_score / len(testing_features)))
+    print("Accuracy: {0} / {1}".format(model_score, len(testing_features)))
+    print("Wrongs: {0}".format(len(testing_features) - model_score))
+    return model_score / len(testing_features)
     
 def getWordsToBeRemovedBaseOnFrequency(vocabulary, frequency):
     words_to_pop = []
@@ -176,7 +173,7 @@ vocabulary = {}
 sorted_vocabulary = {}
 classes = {"story" : [0, 0], "ask_hn" : [0, 0], "show_hn" : [0, 0], "poll" : [0, 0]}
 
-removed = string.punctuation + "“" + "”"
+removed = string.punctuation + "“" + "”" + "«" + "—" + "" + "ð" + "–"
 removed = removed.replace("-", "")
 removed = removed.replace("_", "")
 
@@ -248,7 +245,7 @@ for i in frequencies:
     numbers_of_words_frequency.append(len(vocabulary))
     
     performances_frequency.append(generateResultAndFiles(vocabulary, classes, table, "", "", "Frequency Model {0}".format(i), False))
-    
+        
 percentile_based_voc.sort(reverse=True, key=sortFunction)
 
 performances_percentile = []
@@ -269,17 +266,17 @@ for i in percentiles:
 
     numbers_of_words_percentile.append(len(vocabulary))
     performances_percentile.append(generateResultAndFiles(vocabulary, classes, table, "", "", "Percentile Model {0}".format(i), False))
-    
+
 matplotlib.pyplot.figure(figsize=(4, 2))
 matplotlib.pyplot.subplot(121)
 matplotlib.pyplot.xlabel("Numbers of Words Left in the Vocabulary")
 matplotlib.pyplot.ylabel("Accuracy of the Model")
 matplotlib.pyplot.title("Frequency Model", loc="center")
-matplotlib.pyplot.plot(numbers_of_words_frequency, performances_frequency)
+matplotlib.pyplot.plot(numbers_of_words_frequency, performances_frequency, color='blue', marker='o')
 matplotlib.pyplot.subplot(122)
 matplotlib.pyplot.title("Percentile Model", loc="center")
 matplotlib.pyplot.xlabel("Numbers of Words Left in the Vocabulary")
 matplotlib.pyplot.ylabel("Accuracy of the Model")
-matplotlib.pyplot.plot(numbers_of_words_percentile, performances_percentile)
+matplotlib.pyplot.plot(numbers_of_words_percentile, performances_percentile, color='blue', marker='o')
 matplotlib.pyplot.show()
 print("Program Ended!")
