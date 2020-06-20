@@ -1,4 +1,4 @@
-# Hacker-News-Post-Classifier
+Hacker-News-Post-Classifier
 
 1. First, download the zip file A2_40061685.zip.
 2. Extract the contents of the zip file.
